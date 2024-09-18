@@ -57,7 +57,7 @@ int main() {
    char buff[1000];
 
    while(recv(clientfd, buff, 1000, 0) != -1) {
-    send(clientfd, pong, strlen(pong), 0);
+    write(clientfd, pong, strlen(pong));
    }
 
    close(clientfd);
