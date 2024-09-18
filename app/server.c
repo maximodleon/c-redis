@@ -55,9 +55,9 @@ int main() {
 
    int clientfd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
    char buff[1000];
-   while(1) {
-    recv(clientfd, buff, 1000, 0);
-    write(clientfd, pong, strlen(pong));
+
+   while(recv(clientfd, buff, 1000, 0) != -1) {
+    send(clientfd, pong, strlen(pong), 0);
    }
 
    close(clientfd);
