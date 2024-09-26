@@ -10,6 +10,59 @@
 #include <poll.h>
 #define MAX_CLIENTS 100
 
+struct resp_command {
+  char *name;
+  char *arguments[20];
+  char type;
+} resp_command;
+
+
+// change the parameter to be dynamic
+void parse_resp(char input[1000]) {
+  struct resp_command command;
+  char *terminator = "\r\n";
+  int i = 0;
+  char *token;
+
+  token = strtok(input, terminator);
+  while(token != NULL) {
+    // start of the string
+    // has the amount of data sent
+    if (token[0] == '*') {
+      printf("parsing command with %c arguments\n", token[1]);
+      //move to the next token
+      token = strtok(NULL, "\r\n");
+      continue;
+    }
+
+    // token with the type
+    if(token[0] == '$') {
+      command.type = token[0];
+      token = strtok(NULL, "\r\n");
+      continue;
+    }
+
+    // if command is not already set
+    // check if the current token
+    // is the name of the command
+    if (command.name == NULL) {
+      if (strcasecmp(token, "ECHO") == 0) {
+         command.name = token;
+      }
+    } else {
+      // TODO this is bad parsing
+      // need to improve
+      command.arguments[i] = token;
+      i++;
+    }
+
+    printf("print %s\n", token);
+
+    // move to the next token
+    token = strtok(NULL, "\r\n");
+  }
+}
+
 int main() {
   // Disable output buffering
   setbuf(stdout, NULL);
