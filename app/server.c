@@ -1,6 +1,8 @@
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/poll.h>
+#include <strings.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -12,13 +14,21 @@
 
 struct resp_command {
   char *name;
-  char *arguments[20];
+  char *arguments[10];
   char type;
 } resp_command;
 
+void execute_command(struct resp_command command, char *output) {
+  printf("command: %s\n", command.name);
+  printf("command args: %s\n", command.arguments[0]);
+  if (strcasecmp(command.name, "ECHO") == 0) {
+      int length = strlen(command.arguments[0]);
+      snprintf(output, 1000, "$%i\\r\\n%s\\r\\n", length, command.arguments[0]);
+  }
+}
 
 // change the parameter to be dynamic
-void parse_resp(char input[1000]) {
+struct resp_command parse_resp(char input[1000]) {
   struct resp_command command;
   char *terminator = "\r\n";
   int i = 0;
@@ -29,7 +39,6 @@ void parse_resp(char input[1000]) {
     // start of the string
     // has the amount of data sent
     if (token[0] == '*') {
-      printf("parsing command with %c arguments\n", token[1]);
       //move to the next token
       token = strtok(NULL, "\r\n");
       continue;
@@ -42,25 +51,23 @@ void parse_resp(char input[1000]) {
       continue;
     }
 
-    // if command is not already set
-    // check if the current token
-    // is the name of the command
-    if (command.name == NULL) {
-      if (strcasecmp(token, "ECHO") == 0) {
-         command.name = token;
-      }
-    } else {
+     // TODO need to find a better way to check if
+     // it is a valid command
+     // for now, just checking if it is ECHO
+     if (strcasecmp(token, "ECHO") == 0) {
+        command.name = token;
+     } else {
       // TODO this is bad parsing
       // need to improve
-      command.arguments[i] = token;
-      i++;
+       command.arguments[i] = token;
+       i++;
     }
-
-    printf("print %s\n", token);
 
     // move to the next token
     token = strtok(NULL, "\r\n");
   }
+
+  return command;
 }
 
 int main() {
@@ -153,7 +160,11 @@ int main() {
            pollfds[i].revents = 0;
            nfds--;
         } else {
-          write(pollfds[i].fd, pong, strlen(pong));
+           struct resp_command command = parse_resp(buff);
+           char response[1001] = {};
+           execute_command(command, response);
+           printf("response: %s", response);
+           send(pollfds[i].fd, &response, sizeof(response), 0);
         }
       }
     }
