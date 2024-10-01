@@ -18,18 +18,19 @@ struct resp_command {
   char type;
 } resp_command;
 
-void execute_command(struct resp_command command, char *output) {
-  printf("command: %s\n", command.name);
-  printf("command args: %s\n", command.arguments[0]);
+void execute_command(struct resp_command command, int fd) {
   if (strcasecmp(command.name, "ECHO") == 0) {
-      int length = strlen(command.arguments[0]);
-      snprintf(output, 1000, "$%i\\r\\n%s\\r\\n", length, command.arguments[0]);
+    int length = strlen(command.arguments[0]);
+    dprintf(fd, "$%i\r\n%s\r\n", length, command.arguments[0]);
+  } else if (strcasecmp(command.name, "PING") == 0) {
+    dprintf(fd, "+%s\r\n", "PONG");
   }
 }
 
 // change the parameter to be dynamic
-struct resp_command parse_resp(char input[1000]) {
-  struct resp_command command;
+void parse_resp(char input[1000], struct resp_command *command) {
+  // struct resp_command command;
+  // TODO this will be a constant
   char *terminator = "\r\n";
   int i = 0;
   char *token;
@@ -46,7 +47,7 @@ struct resp_command parse_resp(char input[1000]) {
 
     // token with the type
     if(token[0] == '$') {
-      command.type = token[0];
+      command->type = token[0];
       token = strtok(NULL, "\r\n");
       continue;
     }
@@ -55,19 +56,19 @@ struct resp_command parse_resp(char input[1000]) {
      // it is a valid command
      // for now, just checking if it is ECHO
      if (strcasecmp(token, "ECHO") == 0) {
-        command.name = token;
-     } else {
+        command->name = token;
+     } else if (strcasecmp(token, "PING") == 0) {
+      command->name = token;
+    } else {
       // TODO this is bad parsing
       // need to improve
-       command.arguments[i] = token;
+       command->arguments[i] = token;
        i++;
     }
 
     // move to the next token
     token = strtok(NULL, "\r\n");
   }
-
-  return command;
 }
 
 int main() {
@@ -116,18 +117,16 @@ int main() {
    printf("Waiting for a client to connect...\n");
    client_addr_len = sizeof(client_addr);
 
-   char *pong = "+PONG\r\n";
-
    char buff[1000];
 
-  pollfds[0].fd = server_fd;
-  pollfds[0].events = POLLIN;
-  int nfds = 1;
+   pollfds[0].fd = server_fd;
+   pollfds[0].events = POLLIN;
+   int nfds = 1;
 
-  // initialize pollfds array
-  for (int i = 1; i < MAX_CLIENTS; i++) {
-    pollfds[i].fd = 0;
-  }
+   // initialize pollfds array
+   for (int i = 1; i < MAX_CLIENTS; i++) {
+     pollfds[i].fd = 0;
+   }
 
    while(1) {
     int bytes = poll(pollfds, nfds, -1);
@@ -160,11 +159,14 @@ int main() {
            pollfds[i].revents = 0;
            nfds--;
         } else {
-           struct resp_command command = parse_resp(buff);
-           char response[1001] = {};
-           execute_command(command, response);
-           printf("response: %s", response);
-           send(pollfds[i].fd, &response, sizeof(response), 0);
+          // TODO need to find right size
+          // it needs to be dynamic
+          // to pass the test for codecrafters
+           char response[18] = {};
+           struct resp_command command;
+           parse_resp(buff, &command);
+           execute_command(command, pollfds[i].fd);
+           // send(pollfds[i].fd, response, sizeof(response), 0);
         }
       }
     }
