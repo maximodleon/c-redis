@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -12,18 +12,41 @@
 
 struct resp_command {
   char *name;
-  char *arguments[20];
+  char *arguments;
   char type;
 } resp_command;
 
+struct database {
+  char key[100];
+  char value[200];
+} database;
+
+
+// TODO create a function to create response
+// with correct format
+
+// TODO
+//  add if else statements to handle
+//  the different commands
+//  starting with ECHO
+void handleCommand(struct resp_command command, int fd, struct database *db) {
+  printf("command %s\n", command.name);
+  printf("args %s\n", command.arguments);
+  if(strcasecmp(command.name, "ECHO") == 0) {
+     dprintf(fd, "$%i\r\n%s\r\n", strlen(&command.arguments[0]), &command.arguments[0]);
+  } else if (strcasecmp(command.name, "SET") == 0) {
+     dprintf(fd, "+OK\r\n");
+  }
+}
 
 // change the parameter to be dynamic
-void parse_resp(char input[1000]) {
+struct resp_command parse_resp(char input[1000]) {
   struct resp_command command;
   char *terminator = "\r\n";
   int i = 0;
   char *token;
 
+  // TODO improve this parsing
   token = strtok(input, terminator);
   while(token != NULL) {
     // start of the string
@@ -48,11 +71,16 @@ void parse_resp(char input[1000]) {
     if (command.name == NULL) {
       if (strcasecmp(token, "ECHO") == 0) {
          command.name = token;
+      } else if (strcasecmp(token, "GET") == 0) {
+         command.name = token;
+      } else if (strcasecmp(token, "SET") == 0) {
+         command.name = token;
       }
+
     } else {
       // TODO this is bad parsing
       // need to improve
-      command.arguments[i] = token;
+      command.arguments = token;
       i++;
     }
 
@@ -61,6 +89,8 @@ void parse_resp(char input[1000]) {
     // move to the next token
     token = strtok(NULL, "\r\n");
   }
+
+  return command;
 }
 
 int main() {
@@ -82,8 +112,8 @@ int main() {
     return 1;
    }
 
-  // // Since the tester restarts your program quite often, setting SO_REUSEADDR
-  // // ensures that we don't run into 'Address already in use' errors
+   // Since the tester restarts your program quite often, setting SO_REUSEADDR
+  // ensures that we don't run into 'Address already in use' errors
    int reuse = 1;
    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
     printf("SO_REUSEADDR failed: %s \n", strerror(errno));
@@ -110,21 +140,23 @@ int main() {
    client_addr_len = sizeof(client_addr);
 
    char *pong = "+PONG\r\n";
-
    char buff[1000];
+   struct database db[100];
 
-  pollfds[0].fd = server_fd;
-  pollfds[0].events = POLLIN;
-  int nfds = 1;
+   pollfds[0].fd = server_fd;
+   pollfds[0].events = POLLIN;
+   int nfds = 1;
 
-  // initialize pollfds array
-  for (int i = 1; i < MAX_CLIENTS; i++) {
-    pollfds[i].fd = 0;
-  }
+   // initialize pollfds array
+   for (int i = 1; i < MAX_CLIENTS; i++) {
+     pollfds[i].fd = 0;
+   }
 
    while(1) {
     int bytes = poll(pollfds, nfds, -1);
     if (bytes > 0) {
+      // handle the case for when a client
+      // wants to connect
       if(pollfds[0].revents && POLLIN) {
         int clientfd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
         printf("accept successful: %i\n", clientfd);
@@ -142,6 +174,9 @@ int main() {
       }
     }
 
+    // handle all remaining events
+    // start from 1 because index 0
+    // is to handle connection events
     for (int i = 1; i < MAX_CLIENTS; i++) {
       // if we get a POLLIN event and the slot is not empty
       // handle it
@@ -153,7 +188,11 @@ int main() {
            pollfds[i].revents = 0;
            nfds--;
         } else {
-          write(pollfds[i].fd, pong, strlen(pong));
+          struct resp_command command;
+          char *resp;
+
+          command = parse_resp(buff);
+          handleCommand(command, pollfds[i].fd, db);
         }
       }
     }
