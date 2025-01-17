@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <poll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -9,10 +8,11 @@
 #include <unistd.h>
 #include <poll.h>
 #define MAX_CLIENTS 100
+#define DB_SIZE 100
 
 struct resp_command {
-  char *name;
-  char *arguments;
+  char name[100];
+  char arguments[300];
   char type;
 } resp_command;
 
@@ -20,6 +20,31 @@ struct database {
   char key[100];
   char value[200];
 } database;
+
+void insertIntoCache(struct database *db, char *key, char *value) {
+  printf("key: %s\n", key);
+  printf("value: %s\n", value);
+  for (int i = 0; i < DB_SIZE; i++) {
+     printf("here %d\n", db[i].key == NULL);
+     if(strcmp(&db[i].key[0], '\0') == 0) {
+	strncpy(db[i].key, key, sizeof(db[i].key) - 1);
+	strncpy(db[i].value, value, sizeof(db[i].value) - 1);
+	break;
+     }
+     // TODO what if I don't find space in the DB
+     // need to return an error 
+  }
+}
+
+char *getValueFromCache(struct database *db, char key[100]) {
+  for (int i = 0; i < DB_SIZE; i++) {
+     if(strcmp(db[i].key, key) == 0) {
+	   return db[i].value;
+     }
+  }
+
+  // TODO what to return if no record found
+}
 
 
 // TODO create a function to create response
@@ -30,11 +55,15 @@ struct database {
 //  the different commands
 //  starting with ECHO
 void handleCommand(struct resp_command command, int fd, struct database *db) {
-  printf("command %s\n", command.name);
-  printf("args %s\n", command.arguments);
+  printf("command to execute: %s\n", command.name);
   if(strcasecmp(command.name, "ECHO") == 0) {
      dprintf(fd, "$%i\r\n%s\r\n", strlen(&command.arguments[0]), &command.arguments[0]);
   } else if (strcasecmp(command.name, "SET") == 0) {
+     char *key = strtok(command.arguments, " ");
+     char *value = strtok(NULL, " ");
+     insertIntoCache(db, key, value);
+     dprintf(fd, "+OK\r\n");
+  } else if (strcasecmp(command.name, "GET") == 0) {
      dprintf(fd, "+OK\r\n");
   }
 }
@@ -42,6 +71,7 @@ void handleCommand(struct resp_command command, int fd, struct database *db) {
 // change the parameter to be dynamic
 struct resp_command parse_resp(char input[1000]) {
   struct resp_command command;
+  memset(&command, '\0', sizeof(command));
   char *terminator = "\r\n";
   int i = 0;
   char *token;
@@ -49,46 +79,46 @@ struct resp_command parse_resp(char input[1000]) {
   // TODO improve this parsing
   token = strtok(input, terminator);
   while(token != NULL) {
+    // printf("token: %s\n", token);
     // start of the string
     // has the amount of data sent
     if (token[0] == '*') {
-      printf("parsing command with %c arguments\n", token[1]);
+      // printf("parsing command with %c arguments\n", token[1]);
       //move to the next token
-      token = strtok(NULL, "\r\n");
+      token = strtok(NULL, terminator);
       continue;
     }
+    // printf("token: %s is here\n", token);
 
     // token with the type
     if(token[0] == '$') {
       command.type = token[0];
-      token = strtok(NULL, "\r\n");
+      token = strtok(NULL, terminator);
       continue;
     }
 
     // if command is not already set
     // check if the current token
     // is the name of the command
-    if (command.name == NULL) {
-      if (strcasecmp(token, "ECHO") == 0) {
-         command.name = token;
-      } else if (strcasecmp(token, "GET") == 0) {
-         command.name = token;
-      } else if (strcasecmp(token, "SET") == 0) {
-         command.name = token;
-      }
-
-    } else {
+    if (strcasecmp(token, "ECHO") == 0) {
+       strcat(command.name, token);
+    } else if (strcasecmp(token, "GET") == 0) {
+       strcat(command.name, token);
+    } else if (strcasecmp(token, "SET") == 0) {
+       strcat(command.name, token);
+    }  else {
       // TODO this is bad parsing
       // need to improve
-      command.arguments = token;
+      strcat(command.arguments, " ");
+      strcat(command.arguments, token);
       i++;
     }
-
-    printf("print %s\n", token);
-
     // move to the next token
-    token = strtok(NULL, "\r\n");
+    token = strtok(NULL, terminator);
   }
+
+   // printf("name: %s\n", command.name);
+   // printf("args: %s\n", command.arguments);
 
   return command;
 }
@@ -141,7 +171,7 @@ int main() {
 
    char *pong = "+PONG\r\n";
    char buff[1000];
-   struct database db[100];
+   struct database db[DB_SIZE];
 
    pollfds[0].fd = server_fd;
    pollfds[0].events = POLLIN;
@@ -150,6 +180,11 @@ int main() {
    // initialize pollfds array
    for (int i = 1; i < MAX_CLIENTS; i++) {
      pollfds[i].fd = 0;
+   }
+
+   // initialize DB
+   for (int i = 0; i < DB_SIZE; i++) {
+	db[i].key[0] = '\0';
    }
 
    while(1) {
