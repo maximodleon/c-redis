@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -37,12 +38,40 @@ void insertIntoCache(struct database *db, char *key, char *value) {
 
 char *getValueFromCache(struct database *db, char key[100]) {
   for (int i = 0; i < DB_SIZE; i++) {
-     if(strcmp(db[i].key, key) == 0) {
+     if(strcasecmp(db[i].key, key) == 0) {
+     // printf("here looking..., %d\n", strcasecmp(db[i].key, key) == 0);
+     printf("val: %s\n", db[i].value);
 	   return db[i].value;
      }
   }
 
   // TODO what to return if no record found
+}
+
+void trim(char *str) {
+  char *start = str; // begining of thes tring
+  char *end;
+
+  while (isspace((unsigned char)*start)) {
+	  start++;
+  }
+
+  // if the string only contains spaces
+  if (*start == '\0') {
+	str[0] = '\0'; // set it to empty
+  }
+
+  end = start + strlen(start) - 1;
+
+  // trim trailing spaces
+  while (end > start && isspace((unsigned char)*end)) {
+	  end--;
+  }
+
+  *(end + 1) = '\0';
+
+  memmove(str, start, end - start + 2); // +2 to include null temrinator
+
 }
 
 
@@ -64,8 +93,8 @@ void handleCommand(struct resp_command command, int fd, struct database *db) {
      dprintf(fd, "+OK\r\n");
   } else if (strcasecmp(command.name, "GET") == 0) {
      char value = getValueFromCache(db, command.arguments); 
-     printf("value: %s", value);
-     dprintf(fd, "$%i\r\n%s\r\n", strlen(value), value);
+     printf("value: %s\n", value);
+     dprintf(fd, "+OK\r\n");//"$%i\r\n%s\r\n", strlen(value), value);
   }
 }
 
@@ -112,6 +141,7 @@ struct resp_command parse_resp(char input[1000]) {
       // need to improve
       strcat(command.arguments, " ");
       strcat(command.arguments, token);
+      trim(command.arguments);
       i++;
     }
     // move to the next token
