@@ -25,7 +25,7 @@ void insertIntoCache(struct database *db, char *key, char *value) {
   printf("key: %s\n", key);
   printf("value: %s\n", value);
   for (int i = 0; i < DB_SIZE; i++) {
-     if(strcmp(&db[i].key[0], '\0') == 0) {
+     if(strcmp(&db[i].key, "-1") == 0) {
 	strncpy(db[i].key, key, sizeof(db[i].key) - 1);
 	strncpy(db[i].value, value, sizeof(db[i].value) - 1);
 	break;
@@ -63,7 +63,9 @@ void handleCommand(struct resp_command command, int fd, struct database *db) {
      insertIntoCache(db, key, value);
      dprintf(fd, "+OK\r\n");
   } else if (strcasecmp(command.name, "GET") == 0) {
-     dprintf(fd, "+OK\r\n");
+     char value = getValueFromCache(db, command.arguments); 
+     printf("value: %s", value);
+     dprintf(fd, "$%i\r\n%s\r\n", strlen(value), value);
   }
 }
 
@@ -183,7 +185,9 @@ int main() {
 
    // initialize DB
    for (int i = 0; i < DB_SIZE; i++) {
-	db[i].key[0] = '\0';
+	db[i].key[0] = '-';
+	db[i].key[1] = '1';
+	db[i].key[2] = '\0';
    }
 
    while(1) {
