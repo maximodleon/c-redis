@@ -25,7 +25,6 @@ void insertIntoCache(struct database *db, char *key, char *value) {
   printf("key: %s\n", key);
   printf("value: %s\n", value);
   for (int i = 0; i < DB_SIZE; i++) {
-     printf("here %d\n", db[i].key == NULL);
      if(strcmp(&db[i].key[0], '\0') == 0) {
 	strncpy(db[i].key, key, sizeof(db[i].key) - 1);
 	strncpy(db[i].value, value, sizeof(db[i].value) - 1);
