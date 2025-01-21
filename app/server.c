@@ -39,12 +39,12 @@ void insertIntoCache(struct database *db, char *key, char *value) {
 char *getValueFromCache(struct database *db, char key[100]) {
   for (int i = 0; i < DB_SIZE; i++) {
      if(strcasecmp(db[i].key, key) == 0) {
-     // printf("here looking..., %d\n", strcasecmp(db[i].key, key) == 0);
-     printf("val: %s\n", db[i].value);
-	   return db[i].value;
+	  printf("value found: %s\n", db[i].value);
+	  return db[i].value;
      }
   }
 
+  // return "a";
   // TODO what to return if no record found
 }
 
@@ -84,7 +84,9 @@ void trim(char *str) {
 //  starting with ECHO
 void handleCommand(struct resp_command command, int fd, struct database *db) {
   printf("command to execute: %s\n", command.name);
-  if(strcasecmp(command.name, "ECHO") == 0) {
+  if(strcasecmp(command.name, "PING") == 0) {
+     dprintf(fd, "+PONG\r\n");
+  } else if(strcasecmp(command.name, "ECHO") == 0) {
      dprintf(fd, "$%i\r\n%s\r\n", strlen(&command.arguments[0]), &command.arguments[0]);
   } else if (strcasecmp(command.name, "SET") == 0) {
      char *key = strtok(command.arguments, " ");
@@ -92,9 +94,8 @@ void handleCommand(struct resp_command command, int fd, struct database *db) {
      insertIntoCache(db, key, value);
      dprintf(fd, "+OK\r\n");
   } else if (strcasecmp(command.name, "GET") == 0) {
-     char value = getValueFromCache(db, command.arguments); 
-     printf("value: %s\n", value);
-     dprintf(fd, "+OK\r\n");//"$%i\r\n%s\r\n", strlen(value), value);
+     char *value = getValueFromCache(db, command.arguments); 
+     dprintf(fd, "$%i\r\n%s\r\n", strlen(value), value);
   }
 }
 
@@ -130,7 +131,9 @@ struct resp_command parse_resp(char input[1000]) {
     // if command is not already set
     // check if the current token
     // is the name of the command
-    if (strcasecmp(token, "ECHO") == 0) {
+    if (strcasecmp(token, "PING") == 0) {
+       strcat(command.name, token);
+    } else if (strcasecmp(token, "ECHO") == 0) {
        strcat(command.name, token);
     } else if (strcasecmp(token, "GET") == 0) {
        strcat(command.name, token);
@@ -200,7 +203,6 @@ int main() {
    printf("Waiting for a client to connect...\n");
    client_addr_len = sizeof(client_addr);
 
-   char *pong = "+PONG\r\n";
    char buff[1000];
    struct database db[DB_SIZE];
 
