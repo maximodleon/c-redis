@@ -44,7 +44,6 @@ char *getValueFromCache(struct database *db, char key[100]) {
      }
   }
 
-  // return "a";
   // TODO what to return if no record found
 }
 
@@ -110,16 +109,13 @@ struct resp_command parse_resp(char input[1000]) {
   // TODO improve this parsing
   token = strtok(input, terminator);
   while(token != NULL) {
-    // printf("token: %s\n", token);
     // start of the string
     // has the amount of data sent
     if (token[0] == '*') {
       // printf("parsing command with %c arguments\n", token[1]);
-      //move to the next token
       token = strtok(NULL, terminator);
       continue;
     }
-    // printf("token: %s is here\n", token);
 
     // token with the type
     if(token[0] == '$') {
@@ -150,9 +146,6 @@ struct resp_command parse_resp(char input[1000]) {
     // move to the next token
     token = strtok(NULL, terminator);
   }
-
-   // printf("name: %s\n", command.name);
-   // printf("args: %s\n", command.arguments);
 
   return command;
 }
